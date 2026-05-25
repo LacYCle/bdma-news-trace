@@ -1,0 +1,72 @@
+# config.yaml — 新闻传播溯源系统全局配置
+
+defaults:
+  - _self_
+
+scraping:
+  scrapling:
+    headless: true
+    solve_cloudflare: true
+    stealthy_headers: true
+    google_search: false
+    adaptive_mode: true
+    auto_save_first_run: true
+    fingerprint_dir: ".scrapling/"
+
+  weibo:
+    enabled: true
+    cookie_dir: "data/cookies/"
+    max_pages_per_keyword: 10
+    request_delay: 3
+    max_retry: 3
+
+  news:
+    enabled: true
+    sources: ["sina", "netease"]
+    max_articles_per_source: 50
+    request_delay: 2
+    impersonate: "chrome"
+
+  zhihu:
+    enabled: false
+    max_pages: 5
+
+storage:
+  db_path: "data/news_trace.db"
+  image_dir: "data/images/"
+  cache_ttl_hours: 24
+
+features:
+  text:
+    model_name: "hfl/chinese-roberta-wwm-ext"
+    device: "cuda"
+    max_length: 256
+    sentiment_model: "uer/roberta-base-finetuned-jd-binary-chinese"
+
+  image:
+    clip_model: "ViT-B/32"
+    device: "cuda"
+    hash_size: 8
+
+analysis:
+  propagation:
+    cross_platform_threshold: 0.5
+    temporal_validation: true
+    max_graph_depth: 10
+
+  source_tracing:
+    min_out_degree: 1
+    time_window_hours: 24
+
+  sentiment:
+    turning_point_threshold: 0.3
+    min_posts_per_level: 3
+
+visualization:
+  graph_layout: "spring"
+  max_nodes_display: 200
+  platform_colors:
+    weibo: "#e60012"
+    sina: "#ff8400"
+    netease: "#c30"
+    zhihu: "#0066ff"

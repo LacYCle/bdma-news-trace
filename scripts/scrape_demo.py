@@ -11,12 +11,12 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from src.pipeline import Pipeline
 
 
-def demo():
+def demo(keyword: str = "东方甄选"):
     pipeline = Pipeline()
 
     # 示例 1: 微博搜索
     print("=" * 60)
-    print("示例 1: 微博关键词搜索")
+    print(f"示例 1: 微博关键词搜索 ({keyword})")
     print("=" * 60)
 
     from src.scrapers.weibo import WeiboScraper
@@ -27,7 +27,7 @@ def demo():
 
     if not cm.is_empty:
         with WeiboScraper(cookie_manager=cm) as wb:
-            posts = wb.search_event("东方甄选", max_pages=2)
+            posts = wb.search_event(keyword, max_pages=2)
             print(f"获取到 {len(posts)} 条微博")
             for p in posts[:3]:
                 print(f"  [{p.timestamp}] {p.author_name}: {p.text[:60]}...")
@@ -37,15 +37,20 @@ def demo():
 
     # 示例 2: 新闻搜索
     print("\n" + "=" * 60)
-    print("示例 2: 新闻网站搜索")
+    print(f"示例 2: 新闻网站搜索 ({keyword})")
     print("=" * 60)
 
     from src.scrapers.news import NewsScraper
 
     news = NewsScraper()
     try:
-        posts = news.fetch_by_keyword("东方甄选", source="sina", max_articles=5)
-        print(f"获取到 {len(posts)} 篇新闻")
+        posts = news.fetch_by_keyword(keyword, source="sina", max_articles=5)
+        print(f"Sina 获取到 {len(posts)} 篇新闻")
+        for p in posts[:3]:
+            print(f"  [{p.timestamp}] {p.platform}: {p.text[:60]}...")
+
+        posts = news.fetch_by_keyword(keyword, source="netease", max_articles=5)
+        print(f"NetEase 获取到 {len(posts)} 篇新闻")
         for p in posts[:3]:
             print(f"  [{p.timestamp}] {p.platform}: {p.text[:60]}...")
     finally:
@@ -59,6 +64,6 @@ def demo():
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--keyword", "-k", type=str, default="东方甄选")
+    parser.add_argument("--keyword", "-k", type=str, default="中国")
     args = parser.parse_args()
-    demo()
+    demo(keyword=args.keyword)

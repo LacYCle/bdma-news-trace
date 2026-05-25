@@ -41,19 +41,27 @@ class WeiboScraper(BaseScraper):
         self.session: Optional[StealthySession] = None
 
     def __enter__(self):
-        self.session = StealthySession(
-            headless=True,
-            solve_cloudflare=True,
-        )
         return self
 
     def __exit__(self, *args):
+        self._close_session()
+
+    def _close_session(self):
         if self.session:
             try:
                 self.session.close()
             except Exception:
                 pass
         self.session = None
+
+    def _ensure_session(self, cookies_list: Optional[list[dict]] = None):
+        """创建或复用 StealthySession（cookies 通过构造器注入）"""
+        if self.session is not None:
+            return
+        kwargs = dict(headless=True, solve_cloudflare=True)
+        if cookies_list:
+            kwargs["cookies"] = cookies_list
+        self.session = StealthySession(**kwargs)
 
     # ========== 主接口 ==========
 
@@ -66,9 +74,6 @@ class WeiboScraper(BaseScraper):
         Returns:
             帖子列表
         """
-        if not self.session:
-            raise RuntimeError("WeiboScraper 必须在 context manager 中使用: with WeiboScraper() as wb: ...")
-
         posts: list[Post] = []
         cookie_entry = self.cookie_manager.get_next()
         if not cookie_entry:
@@ -100,9 +105,6 @@ class WeiboScraper(BaseScraper):
     def get_repost_chain(self, post_id: str,
                          cookies_list: Optional[list[dict]] = None) -> list[Post]:
         """获取某条微博的转发链"""
-        if not self.session:
-            raise RuntimeError("WeiboScraper 必须在 context manager 中使用")
-
         print(f"[Weibo] 获取转发链: {post_id}")
         try:
             reposts = self.execute_with_retry(
@@ -120,12 +122,8 @@ class WeiboScraper(BaseScraper):
                            cookies_list: Optional[list[dict]]) -> list[Post]:
         """抓取并解析单页搜索结果"""
         url = f"{self.SEARCH_URL}?q={keyword}&page={page}"
-        page_content = self.session.get(
-            url,
-            cookies=cookies_list or [],
-            stealthy_headers=True,
-            google_search=False,
-        )
+        self._ensure_session(cookies_list)
+        page_content = self.session.fetch(url, google_search=False)
 
         cards = page_content.css(
             '.card-wrap, .m-wrap',
@@ -248,12 +246,8 @@ class WeiboScraper(BaseScraper):
                             cookies_list: Optional[list[dict]]) -> list[Post]:
         """抓取转发链"""
         url = f"{self.REPOST_URL}?id={post_id}"
-        page = self.session.get(
-            url,
-            cookies=cookies_list or [],
-            stealthy_headers=True,
-            google_search=False,
-        )
+        self._ensure_session(cookies_list)
+        page = self.session.fetch(url, google_search=False)
 
         repost_items = page.css(
             '.repost-item, [class*="repost"]',

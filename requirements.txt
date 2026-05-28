@@ -1,19 +1,21 @@
 # ===== 爬虫核心 (Scrapling) =====
-scrapling[fetchers]>=0.1.0
-# 安装后必须执行: scrapling install
+scrapling[fetchers]>=0.4.0
+# 安装后必须执行: scrapling install (下载浏览器 Chromium 依赖)
 
 # ===== 深度学习 =====
 torch>=2.0.0
-torchvision>=0.15.0
 transformers>=4.36.0
+# CLIP 模型: transformers 内置 CLIPModel 作为回退
+# OpenAI CLIP (可选): pip install git+https://github.com/openai/CLIP.git
+# Chinese-CLIP (可选): pip install cn-clip (需要编译 lmdb，可能失败)
 
 # ===== 图像处理 =====
 pillow>=10.0.0
 opencv-python-headless>=4.8.0
 
-# ===== OCR =====
-paddlepaddle-gpu>=2.5.0
-paddleocr>=2.7.0
+# ===== OCR (可选，依赖较重) =====
+# paddlepaddle>=2.5.0
+# paddleocr>=2.7.0
 
 # ===== 图计算 & 数值 =====
 networkx>=3.2
@@ -22,10 +24,6 @@ numpy>=1.24.0
 # ===== 可视化 =====
 plotly>=5.17.0
 pyecharts>=2.0.0
-
-# ===== 配置 & 实验 =====
-hydra-core>=1.3.0
-omegaconf>=2.3.0
 
 # ===== 数据存储 =====
 sqlite-utils>=3.35

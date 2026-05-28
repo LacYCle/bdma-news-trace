@@ -17,6 +17,7 @@
 import os
 import json
 import hashlib
+import re
 from datetime import datetime
 from typing import Optional
 
@@ -44,24 +45,26 @@ class WeiboScraper(BaseScraper):
         return self
 
     def __exit__(self, *args):
-        self._close_session()
+        self.close()
 
-    def _close_session(self):
+    def close(self):
         if self.session:
             try:
-                self.session.close()
+                self.session.__exit__(None, None, None)
             except Exception:
                 pass
         self.session = None
 
     def _ensure_session(self, cookies_list: Optional[list[dict]] = None):
-        """创建或复用 StealthySession（cookies 通过构造器注入）"""
+        """创建 StealthySession 并进入 context manager"""
         if self.session is not None:
             return
         kwargs = dict(headless=True, solve_cloudflare=True)
         if cookies_list:
             kwargs["cookies"] = cookies_list
-        self.session = StealthySession(**kwargs)
+        session = StealthySession(**kwargs)
+        session.__enter__()
+        self.session = session
 
     # ========== 主接口 ==========
 
@@ -94,6 +97,7 @@ class WeiboScraper(BaseScraper):
                 posts.extend(page_posts)
             except Exception:
                 print(f"[Weibo] 第 {page} 页失败，跳过")
+                self.close()  # 关闭异常会话，下次重试时重建
                 continue
 
             self._delay()
@@ -122,6 +126,8 @@ class WeiboScraper(BaseScraper):
                            cookies_list: Optional[list[dict]]) -> list[Post]:
         """抓取并解析单页搜索结果"""
         url = f"{self.SEARCH_URL}?q={keyword}&page={page}"
+        # 每次调用关闭旧会话重建，避免 "Context manager has been closed"
+        self.close()
         self._ensure_session(cookies_list)
         page_content = self.session.fetch(url, google_search=False)
 
@@ -208,15 +214,22 @@ class WeiboScraper(BaseScraper):
         )
 
     def _parse_count(self, card, css: str) -> int:
-        """解析互动计数（处理 '1.2万' 等格式）"""
+        """解析互动计数（处理 '1.2万', '转赞人数超过3800' 等格式）"""
+        import re
         text = card.css(css).get(default="0")
         if not text:
             return 0
         text = text.strip()
+        # 只提取数字部分
+        num_match = re.search(r'(\d[\d,.]*(?:万)?)', text)
+        if num_match:
+            num_str = num_match.group(1)
+        else:
+            return 0
         try:
-            if "万" in text:
-                return int(float(text.replace("万", "")) * 10000)
-            return int(text.replace(",", "").replace(" ", ""))
+            if "万" in num_str:
+                return int(float(num_str.replace("万", "")) * 10000)
+            return int(num_str.replace(",", ""))
         except ValueError:
             return 0
 
@@ -225,27 +238,37 @@ class WeiboScraper(BaseScraper):
         from datetime import timedelta
         if not time_str:
             return datetime.now()
-        # 相对时间: "5分钟前", "2小时前", "昨天", "3月15日"
+        time_str = time_str.strip()
+        now = datetime.now()
+        # 相对时间: "5分钟前", "2小时前", "昨天"
         if "分钟前" in time_str:
-            mins = int(time_str.replace("分钟前", ""))
-            return datetime.now() - timedelta(minutes=mins)
+            mins = int(re.search(r'(\d+)', time_str).group(1))
+            return now - timedelta(minutes=mins)
         if "小时前" in time_str:
-            hours = int(time_str.replace("小时前", ""))
-            return datetime.now() - timedelta(hours=hours)
+            hours = int(re.search(r'(\d+)', time_str).group(1))
+            return now - timedelta(hours=hours)
         if "昨天" in time_str:
-            return datetime.now() - timedelta(days=1)
-        # 尝试标准格式
-        for fmt in ["%Y-%m-%d %H:%M", "%Y-%m-%d", "%m月%d日 %H:%M", "%m月%d日"]:
+            return now - timedelta(days=1)
+        # 标准格式（带年份）
+        for fmt in ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d", "%Y年%m月%d日 %H:%M", "%Y年%m月%d日"]:
             try:
                 return datetime.strptime(time_str, fmt)
             except ValueError:
                 continue
-        return datetime.now()
+        # 无年份格式: 补当前年份
+        for fmt in ["%m月%d日 %H:%M", "%m月%d日", "%m-%d %H:%M", "%m-%d"]:
+            try:
+                dt = datetime.strptime(time_str, fmt)
+                return dt.replace(year=now.year)
+            except ValueError:
+                continue
+        return now
 
     def _fetch_repost_chain(self, post_id: str,
                             cookies_list: Optional[list[dict]]) -> list[Post]:
         """抓取转发链"""
         url = f"{self.REPOST_URL}?id={post_id}"
+        self.close()
         self._ensure_session(cookies_list)
         page = self.session.fetch(url, google_search=False)
 

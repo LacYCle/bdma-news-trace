@@ -120,7 +120,7 @@ class ReportGenerator:
         if figures:
             self._section(lines, 2, "可视化图表")
             for name in figures:
-                lines.append(f"- `{name}` → `data/figures/{name}.html`")
+                lines.append(f"- `{name}` → `data/figures/{name}.svg`")
             lines.append("")
 
         # 6. 页脚

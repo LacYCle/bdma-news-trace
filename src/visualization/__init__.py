@@ -1,5 +1,5 @@
-"""可视化层 — Plotly 交互图表 + Markdown 分析报告"""
+"""可视化层 — Nature-Figure matplotlib 出版物图表 + Markdown 分析报告"""
 
-from .visualizer import PropagationVisualizer
+from .nature_visualizer import NatureVisualizer
 from .report import ReportGenerator
 

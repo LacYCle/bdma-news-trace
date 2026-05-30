@@ -2301,3 +2301,58 @@ python -c "from scrapling.fetchers import StealthySession; print('OK')"
 # 4. 安装其余依赖
 pip install -r requirements.txt
 ```
+
+---
+
+## 11. 实现状态附录 (2026-05-30)
+
+| 模块 | DESIGN.md § | 状态 | 说明 |
+|------|------------|------|------|
+| 微博爬虫 | §3.2.1 | ✅ | Scrapling StealthySession + Playwright QR 码自动登录 |
+| 新闻爬虫 | §3.2.2 | ✅ | Scrapling FetcherSession + 自适应选择器, 8 个新浪 lid |
+| Cookie 管理 | §3.2.3 | ✅ | Cookie 池 + 自动认证回退 + Playwright 交互式登录 |
+| 数据存储 | §3.4 | ✅ | SQLite 5 表 (posts/events/images/propagation_edges/sentiment_records) |
+| 事件发现 | §3.5 | ✅ | Pipeline + EventTracker, 支持关键词搜索 + 已有事件复用 |
+| 文本特征 | §4.1 | ✅ | Chinese-RoBERTa 语义编码 + 规则回退 (HF 离线模式) |
+| 图像特征 | §4.2 | ✅ | pHash/dHash + 颜色情感 + aiohttp 异步批量下载 |
+| 跨平台关联 | §4.3 | ✅ | Jaccard 文本相似度 + pHash 汉明距离图像匹配 |
+| 传播图构建 | §5.1 | ✅ | NetworkX DiGraph, 平台内/跨平台/图像匹配边, 自动持久化 |
+| 源头溯源 | §5.2 | ✅ | 多维评分 (入度+出度+文本+时间), Hits@K/MRR 评估 |
+| 情感演化 | §5.3 | ✅ | BFS 分层追踪 + 转折点检测 + 跨平台对比 |
+| 可视化 (Plotly) | §6.1 | 🔄 | 已替换为 nature-figure matplotlib (SVG/PDF/PNG) |
+| 可视化 (Nature-Figure) | — | ✅ | 2×2 出版物级面板 (传播图/情感/溯源/跨平台) |
+| 报告生成 | §6.2 | ✅ | Markdown 自动报告 |
+| 配置管理 | §9 | ✅ | YAML + dataclass, 惰性单例, 运行时覆盖 |
+| 评估策略 | §10 | ✅ | Hits@1/Hits@3/MRR + 消融变体 + CHEF 基准 |
+| CLI 管理器 | — | ✅ | 7 菜单交互界面 (采集/分析/快速/批量/概览/导入/登录) |
+| 端到端流水线 | §8 | ✅ | `run_pipeline.py` 7 步全自动, 支持 --dataset 导入 |
+| 测试体系 | — | ✅ | 66 tests, pytest, 覆盖 DB/Graph/Tracer/Sentiment/Config |
+| 配置系统 | — | ✅ | `src/config.py`, YAML→dataclass, config/config.yaml |
+| 日志系统 | — | ✅ | `src/logging_setup.py`, 控制台彩色 + 文件持久化 |
+
+### 新增模块 (超出 DESIGN.md 原始范围)
+
+| 模块 | 文件 | 说明 |
+|------|------|------|
+| 图像下载器 | `src/data/image_downloader.py` | aiohttp 异步批量下载, 6 并发 |
+| 图像管线 | `src/data/image_pipeline.py` | 下载→特征提取→DB 存储一站式 |
+| 配置加载器 | `src/config.py` | YAML + dataclass 类型安全配置 |
+| 日志系统 | `src/logging_setup.py` | 彩色控制台 + 文件持久化 |
+| Nature 可视化 | `src/visualization/nature_visualizer.py` | matplotlib 出版物级图表 |
+| 微博认证 | `src/scrapers/weibo_auth.py` | Playwright QR 码登录 |
+| CHEF 数据集 | `src/data/chef.py` | 清华大学 CHEF 数据集加载器 |
+| CLI 管理器 | `scripts/cli.py` | 7 菜单交互界面 |
+| 流水线 | `scripts/run_pipeline.py` | 端到端 7 步自动流水线 |
+| 评估脚本 | `scripts/evaluate.py` | Hits@K/MRR 评估 + 消融实验 |
+
+### 测试覆盖
+
+```
+tests/test_database.py ..... 13 tests
+tests/test_graph.py ........ 15 tests
+tests/test_sentiment.py .... 13 tests
+tests/test_tracer.py ....... 15 tests
+tests/test_config.py ....... 10 tests
+─────────────────────────────────
+TOTAL ..................... 66 tests (1.2s)
+```

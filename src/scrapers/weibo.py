@@ -178,10 +178,16 @@ class WeiboScraper(BaseScraper):
                 user_name = name.strip()
                 break
 
-        # 统计
-        repost_count = self._parse_count(card, sel["repost_count"]["css"])
-        comment_count = self._parse_count(card, sel["comment_count"]["css"])
-        like_count = self._parse_count(card, sel["like_count"]["css"])
+        # 统计 — 三级回退: CSS选择器 → XPath contains → 全文正则
+        repost_count = self._extract_card_count(
+            card, sel["repost_count"], "转发"
+        )
+        comment_count = self._extract_card_count(
+            card, sel["comment_count"], "评论"
+        )
+        like_count = self._extract_card_count(
+            card, sel["like_count"], "赞"
+        )
 
         # 时间
         time_str = ""
@@ -215,23 +221,84 @@ class WeiboScraper(BaseScraper):
 
     def _parse_count(self, card, css: str) -> int:
         """解析互动计数（处理 '1.2万', '转赞人数超过3800' 等格式）"""
-        import re
         text = card.css(css).get(default="0")
         if not text:
             return 0
-        text = text.strip()
-        # 只提取数字部分
-        num_match = re.search(r'(\d[\d,.]*(?:万)?)', text)
-        if num_match:
-            num_str = num_match.group(1)
-        else:
+        return self._count_text_to_int(text)
+
+    def _count_text_to_int(self, text: str) -> int:
+        """将含计数字符串转为整数"""
+        if not text:
             return 0
+        text = text.strip()
+        num_match = re.search(r'(\d[\d,.]*(?:万)?)', text)
+        if not num_match:
+            return 0
+        num_str = num_match.group(1)
         try:
             if "万" in num_str:
                 return int(float(num_str.replace("万", "")) * 10000)
-            return int(num_str.replace(",", ""))
+            return int(num_str.replace(",", "").replace(".", ""))
         except ValueError:
             return 0
+
+    def _extract_card_count(self, card, sel: dict[str, str],
+                            action_keyword: str) -> int:
+        """三级回退提取互动计数
+
+        1. CSS 选择器 (已注册的多备选方案)
+        2. XPath contains(action_keyword) → 提取附近数字
+        3. 全文正则: 从卡片全体文本搜索 '转发 xxx' 模式
+        """
+        # 级别1: CSS 选择器
+        for css in sel["css"].split(", "):
+            text = card.css(css).get(default="")
+            if text and text.strip():
+                result = self._count_text_to_int(text)
+                if result > 0:
+                    return result
+
+        # 级别2: XPath  — 搜索包含 action_keyword 的元素并提取数字
+        try:
+            xpath_result = card.xpath(
+                f'.//*[contains(text(), "{action_keyword}")]//text()'
+            ).getall()
+            if xpath_result:
+                combined = " ".join(xpath_result)
+                result = self._count_text_to_int(combined)
+                if result > 0:
+                    return result
+        except Exception:
+            pass
+
+        # 级别2b: XPath 搜索包含该关键词的 <a> 内的 <em>/<span>
+        for tag in ("em", "span"):
+            try:
+                tag_text = card.xpath(
+                    f'.//a[contains(., "{action_keyword}")]//{tag}/text()'
+                ).get(default="")
+                if tag_text:
+                    result = self._count_text_to_int(tag_text)
+                    if result > 0:
+                        return result
+            except Exception:
+                continue
+
+        # 级别3: 全文正则 — 从卡片文本中搜索 "转发 123" 模式
+        if action_keyword in ("转发", "评论", "赞"):
+            try:
+                card_text = card.css('::text').get(default="")
+                # 微博卡片的数字格式: "转发 1234" 或 "转发1234"
+                pattern = rf'{action_keyword}\s*(\d[\d,.]*万?)'
+                match = re.search(pattern, card_text)
+                if match:
+                    result = self._count_text_to_int(match.group(1))
+                    if result > 0:
+                        return result
+            except Exception:
+                pass
+
+        return 0
 
     def _parse_weibo_time(self, time_str: str) -> datetime:
         """解析微博时间格式"""

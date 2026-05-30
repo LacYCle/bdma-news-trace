@@ -28,11 +28,16 @@ class CookieManager:
         "strict": "Strict",
     }
 
-    def __init__(self, cookie_dir: str = "data/cookies/"):
+    def __init__(self, cookie_dir: str = "data/cookies/", auto_auth: bool = True):
         self.cookie_dir = cookie_dir
         self.pool: list[dict] = []          # 每个元素: {"cookies": [...], "source": "weibo_alice"}
         self.current_index = 0
+        self.auto_auth = auto_auth
         self._load_all()
+
+        # 如果池为空且允许自动登录, 触发 WeiboAuth
+        if auto_auth and not self.pool:
+            self._trigger_auto_auth()
 
     @classmethod
     def normalize_cookie(cls, raw: dict) -> dict:
@@ -152,6 +157,25 @@ class CookieManager:
         """重新扫描并加载 Cookie 目录"""
         self.pool.clear()
         self._load_all()
+
+    def force_login(self) -> bool:
+        """强制触发浏览器登录流程, 返回是否成功"""
+        return self._trigger_auto_auth()
+
+    def _trigger_auto_auth(self) -> bool:
+        """触发 WeiboAuth 自动登录"""
+        try:
+            from .weibo_auth import WeiboAuth
+            print("[CookieManager] Cookie 池为空, 启动自动登录...")
+            result = WeiboAuth.ensure_cookies(self.cookie_dir, silent=False)
+            if result:
+                self.refresh_pool()
+            return result
+        except ImportError:
+            return False
+        except Exception as e:
+            print(f"[CookieManager] 自动登录失败: {e}")
+            return False
 
     def prompt_export_guide(self):
         """打印 Cookie 导出指引"""

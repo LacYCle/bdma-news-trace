@@ -8,12 +8,8 @@ import sys
 import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from src.pipeline import Pipeline
-
 
 def demo(keyword: str = "东方甄选"):
-    pipeline = Pipeline()
-
     # 示例 1: 微博搜索
     print("=" * 60)
     print(f"示例 1: 微博关键词搜索 ({keyword})")

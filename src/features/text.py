@@ -1,13 +1,12 @@
 """文本特征提取器
 
-基于 Chinese-RoBERTa 的语义编码 + 细粒度情感分析 + 语言学统计特征。
+基于 Chinese-RoBERTa 的语义编码 + 细粒度情感分析。
 
 依赖:
   transformers, torch, numpy
 """
 
 import numpy as np
-from typing import Optional
 
 _is_torch_available = False
 try:
@@ -144,97 +143,3 @@ class ChineseSentimentAnalyzer:
         dominant = "正面" if pos_score >= neg_score else "负面"
         return {"emotions": emotions, "polarity": float(polarity),
                 "arousal": float(max(pos_score, neg_score)), "dominant": dominant}
-
-
-class TextStatistics:
-    """文本语言学统计特征"""
-
-    def extract(self, text: str) -> dict:
-        if not text:
-            return {k: 0.0 for k in self._feature_names()}
-        length = max(len(text), 1)
-        sentences = max(text.count("。") + text.count("！") + text.count("？") + text.count("\n"), 1)
-        return {
-            "char_count": min(len(text), 10000) / 1000.0,
-            "sentence_count": float(sentences),
-            "avg_sentence_len": length / sentences / 100.0,
-            "exclamation_ratio": text.count("！") / length * 10,
-            "question_ratio": text.count("？") / length * 10,
-            "has_hashtag": 1.0 if "#" in text else 0.0,
-            "has_mention": 1.0 if "@" in text else 0.0,
-            "url_count": min(text.count("http"), 5) / 5.0,
-        }
-
-    def _feature_names(self) -> list[str]:
-        return ["char_count", "sentence_count", "avg_sentence_len",
-                "exclamation_ratio", "question_ratio", "has_hashtag",
-                "has_mention", "url_count"]
-
-
-class TextFeatureExtractor:
-    """文本特征统一提取器 — 输出 ~784-dim 向量"""
-
-    def __init__(self, device: str = None, load_encoder: bool = True,
-                 load_sentiment: bool = True):
-        self.encoder: Optional[TextEncoder] = None
-        self.sentiment: Optional[ChineseSentimentAnalyzer] = None
-        self.stats = TextStatistics()
-
-        if load_encoder and _is_torch_available:
-            try:
-                self.encoder = TextEncoder(device=device)
-            except Exception as e:
-                print(f"[TextFeature] 编码器加载失败: {e}")
-
-        if load_sentiment and _is_torch_available:
-            try:
-                self.sentiment = ChineseSentimentAnalyzer(device=device)
-            except Exception as e:
-                print(f"[TextFeature] 情感分析器加载失败: {e}")
-
-    @property
-    def dim(self) -> int:
-        d = 0
-        if self.encoder:
-            d += self.encoder.dim  # 768
-        if self.sentiment:
-            d += 8  # polarity + arousal + 6 emotions (non-neutral)
-        d += 8  # statistics
-        return d
-
-    def extract(self, text: str) -> np.ndarray:
-        vectors = []
-
-        if self.encoder:
-            try:
-                vectors.append(self.encoder.encode(text))
-            except Exception:
-                vectors.append(np.zeros(self.encoder.dim, dtype=np.float32))
-
-        if self.sentiment:
-            try:
-                result = self.sentiment.analyze(text)
-                vec = np.array([
-                    result["polarity"],
-                    result["arousal"],
-                    result["emotions"].get("愤怒", 0),
-                    result["emotions"].get("喜悦", 0),
-                    result["emotions"].get("悲伤", 0),
-                    result["emotions"].get("惊讶", 0),
-                    result["emotions"].get("恐惧", 0),
-                    result["emotions"].get("厌恶", 0),
-                ], dtype=np.float32)
-                vectors.append(vec)
-            except Exception:
-                vectors.append(np.zeros(8, dtype=np.float32))
-
-        stats = self.stats.extract(text)
-        vectors.append(np.array(list(stats.values()), dtype=np.float32))
-
-        return np.concatenate(vectors)
-
-    def extract_sentiment_summary(self, text: str) -> dict:
-        """仅提取情感摘要 (不编码语义)"""
-        if self.sentiment:
-            return self.sentiment.analyze(text)
-        return ChineseSentimentAnalyzer()._analyze_with_rules(text)

@@ -1,0 +1,14 @@
+[
+  {
+    "id": "chef_event_001",
+    "name": "新能源汽车补贴政策调整",
+    "keywords": ["新能源", "汽车", "补贴", "政策"],
+    "true_source_id": "chef_article_001_01"
+  },
+  {
+    "id": "chef_event_002",
+    "name": "台风登陆东南沿海地区",
+    "keywords": ["台风", "登陆", "东南沿海"],
+    "true_source_id": "chef_article_002_01"
+  }
+]

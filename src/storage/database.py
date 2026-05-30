@@ -220,6 +220,14 @@ class Database:
             row = conn.execute("SELECT * FROM events WHERE id=?", (event_id,)).fetchone()
             return dict(row) if row else None
 
+    def list_events(self) -> list[dict]:
+        """列出所有事件, 按最后更新时间倒序"""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM events ORDER BY last_updated DESC"
+            ).fetchall()
+            return [dict(r) for r in rows]
+
     # ========== Sentiment ==========
 
     def insert_sentiment(self, record: SentimentRecord):

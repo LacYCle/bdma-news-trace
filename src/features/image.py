@@ -139,37 +139,6 @@ class ImageHasher:
         return self.hamming_distance(self.phash(img1), self.phash(img2)) <= threshold
 
 
-class ImageOCR:
-    """图像文字提取 (PaddleOCR)"""
-
-    def __init__(self, use_gpu: bool = False):
-        self._ocr = None
-        try:
-            from paddleocr import PaddleOCR
-            self._ocr = PaddleOCR(use_angle_cls=True, lang='ch', use_gpu=use_gpu)
-        except ImportError:
-            print("[OCR] PaddleOCR 未安装，跳过 OCR 功能")
-        except Exception as e:
-            print(f"[OCR] 初始化失败: {e}")
-
-    @property
-    def is_available(self) -> bool:
-        return self._ocr is not None
-
-    def extract_text(self, image: Image.Image) -> str:
-        if not self.is_available:
-            return ""
-        img_array = np.array(image)
-        results = self._ocr.ocr(img_array, cls=True)
-        if not results or not results[0]:
-            return ""
-        texts = []
-        for line in results[0]:
-            if line and len(line) >= 2:
-                texts.append(line[1][0])
-        return ' '.join(texts)
-
-
 class ImageColorSentiment:
     """基于色彩统计的图像情感倾向 (HSV 3-dim)"""
 
@@ -183,37 +152,3 @@ class ImageColorSentiment:
         avg_saturation = hsv[:, :, 1].mean() / 255.0
         avg_brightness = hsv[:, :, 2].mean() / 255.0
         return np.array([warm_ratio, avg_saturation, avg_brightness], dtype=np.float32)
-
-
-class ImageFeatureExtractor:
-    """图像特征统一提取器 — 输出 ~643-dim"""
-
-    def __init__(self, device: str = None, enable_ocr: bool = False):
-        self.clip_encoder = CLIPImageEncoder(device=device)
-        self.hasher = ImageHasher()
-        self.ocr = ImageOCR(use_gpu=(device == "cuda")) if enable_ocr else None
-        self.color = ImageColorSentiment()
-
-    @property
-    def vector_dim(self) -> int:
-        return self.clip_encoder.dim + 3 + 64 + 64  # 512 + 3 + 64 + 64 = 643
-
-    def extract(self, image: Image.Image) -> dict:
-        return {
-            "clip_embedding": self.clip_encoder.encode(image),
-            "phash": self.hasher.phash(image),
-            "dhash": self.hasher.dhash(image),
-            "ocr_text": self.ocr.extract_text(image) if self.ocr else "",
-            "color_features": self.color.extract(image),
-        }
-
-    def extract_vector(self, image: Image.Image) -> np.ndarray:
-        features = self.extract(image)
-        phash_vec = np.array([int(b) for b in features["phash"]], dtype=np.float32)
-        dhash_vec = np.array([int(b) for b in features["dhash"]], dtype=np.float32)
-        return np.concatenate([
-            features["clip_embedding"].flatten(),
-            features["color_features"].flatten(),
-            phash_vec,
-            dhash_vec,
-        ])
